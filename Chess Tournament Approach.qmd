@@ -1,0 +1,31 @@
+---
+title: "Chess Tournament (Project 1)"
+author: "Carol Campbell"
+date: September 24, 2026
+format: html
+editor: visual
+---
+
+## Chess Tournament
+
+## Objective
+
+We are given a text file containing a chess tournament cross-table where the information has some structure with which we are to transform in order to facilitate data manipulation and calculate each player's "stats" including total number of points, their pre-rating and their opponent's pre-rating.
+
+## Approach
+
+Prior to doing any coding, I watched the Youtube video, "Reading a Chess Tournament Cross-Table" by Andy Catlin, that was included in the assignment requirements to understand what information a chess tournament cross-table conveys. Once I had an understanding of what the data meant, I was able to conceptualize my approach.
+
+To begin, I will import it into R, study it and then use appropriate appropriate functions from the tidyverse package, including but not limited to stringr and tidyr to manipulate the data and parse out extraneous data/characters. Other functions such as skimr and ggrepel may be used to transform the data into something more suitable for exporting into a .csv file with one row per player with columns that show :
+
+- Player's Name
+
+- Player's State
+
+- Total number of Points
+
+- Player's Pre-Rating
+
+- Average Pre Chess Rating of Opponents
+
+## Code
