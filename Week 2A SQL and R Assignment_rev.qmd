@@ -1,0 +1,211 @@
+---
+title: "Assignment 2A SQL and R"
+author: "Carol Campbell"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Movie Ratings from random "critics"
+
+I chose six movies that played in or are currently playing in theatres, and asked ten "friends" aka "critics" to rate each of the movies they had seen on a scale of 1 to 5. Not everyone saw every movie.
+
+Using pgadmin from PostgreSQL, I created the "Movies" database which has three individual tables to store data.
+
+##Install needed packages and/or libraries.
+
+```{r include=FALSE}
+#install.packages("RPostgres")
+#install.packages("DBI")
+
+library(RPostgres)
+library(DBI)
+library(tibble)
+library(dbplyr)
+library(tidyverse)
+library(ggplot2)
+
+```
+
+I created a new PostgreSQL database connection, "Movies", for this assignment. We were instructed not to disclose our password for this assignment, so I used the superuser password that I created during PostgreSQL installation when prompted by the code to access the database.
+
+```{r}
+# Connect PostgresSQL database to R to upload my "Movies" database.
+
+myMoviesdb = dbConnect(RPostgres::Postgres(),
+       dbname='Movies',
+       host= Sys.getenv("local"),
+       port=5432,
+       user='postgres',
+       password=rstudioapi::askForPassword("Enter password"))
+  
+  
+```
+
+Now that the database has been loaded, we should view the tables that we'll be working with. database?
+
+```{r}
+# See the database tables.
+
+dbListTables(myMoviesdb)
+```
+
+The Movies database contains three tables: critics, movie and score. Next we'll load and view each.
+
+```{r}
+#load each table into a tibble using dbGetQuery()
+
+movie <- as_tibble(dbGetQuery(myMoviesdb, "SELECT * FROM movie"))
+movie
+
+critics <- as_tibble(dbGetQuery(myMoviesdb,"SELECT distinct critic_id, first_name from critics order by 1"))
+critics
+
+score <- as_tibble(dbGetQuery(myMoviesdb,"select * from score")) 
+head(score)
+```
+
+I then joined the tables via an SQL statement executed within R Studio to create one consolidated table named "movie_ratings" for analysis and manipulation in r
+
+```{r}
+
+movie_ratings <- dbGetQuery(myMoviesdb, "SELECT 
+ 	m.title,
+	c.first_name,
+	s.rating
+FROM movie m
+JOIN score s 
+ON m.movie_id = s.movie_id
+LEFT JOIN critics c
+ON c.critic_id = s.critic_id")
+
+head(movie_ratings)
+```
+
+For the sake of brevity, I limited the output by using the "head" qualifier, but I know that there are many observations in the movie_ratings table. Let's use "glimpse" to see:
+
+```{r}
+glimpse(movie_ratings)
+```
+
+Here we see that there are sixty (60) rows of data each with three rows.
+
+## Tidying the data
+
+Now that we have our dataframe, movie_ratings, loaded, we need to tidy it for analysis
+
+First, let's rename the "first_name" column and store it in a new dataframe
+
+```{r}
+#rename column and save to new df
+
+movie_scores <- movie_ratings |> rename(firstname = first_name)
+
+head(movie_scores)
+
+```
+
+```{r}
+# Checked the structure of the movie_scores data. 60 rows. 5 columns. 
+
+str(movie_scores)
+```
+
+## Tidy the data
+
+Since every reviewer did not see every movie, we have to exclude the blank fields from any calculations. We accomplish this using "!is.na" in filter.
+
+```{r}
+# filter null values using !is.na to exclude blank fields. 
+
+movie_scores_fil <- movie_scores |>
+  filter(!is.na(rating))
+  
+  
+#view df new_ratings_filtered
+head(movie_scores_fil)
+
+```
+
+Let's see the structure after we filter N/A values:
+
+```{r}
+# Checked the structure of the movie_scores data. 60 rows. 5 columns. 
+
+str(movie_scores_fil)
+```
+
+Here we see that there are now thirty-three rows, instead of the sixty (60), each with three (3)columns.
+
+## Next, let's transform data into wide format to improve readability.
+
+```{r}
+movie_scores_wide <- movie_scores_fil |> 
+  pivot_wider(
+    names_from = title, 
+    values_from = rating
+)
+
+movie_scores_wide
+
+```
+
+The wide format groups our data by critic and shows their ratings for each movie across one line.
+
+## How many movies did each critic review?
+
+```{r}
+#Count ratings per critic and movie
+
+count_per_reviewer <- movie_ratings |>
+  group_by(first_name) %>% 
+  summarize(
+    total_movies_rated = sum(!is.na(rating)),
+    .groups = "drop" # Good practice to remove the grouping afterward
+  )
+
+count_per_reviewer
+
+
+```
+
+## What is the average score that each movie earned from our critics?
+
+```{r}
+# Group by title to see the average score for each movie rated
+movie_scores_fil_avg <- movie_scores_fil |>
+   group_by(title) |>
+    summarise(Avg_Score = mean(as.numeric(rating))) |>
+      arrange(desc(Avg_Score)
+      )
+#view avg score sorted highest to smallest
+movie_scores_fil_avg
+```
+
+## And the average rating per critic
+
+```{r}
+reviewer_ratings <-movie_scores |>
+  group_by(firstname)|>
+    summarise (Avg_rating = mean(rating, na.rm=TRUE)
+  ) 
+
+reviewer_ratings
+
+```
+
+## Lets see how the reviewer ratings for each movie
+
+```{r}
+reviewer_ratings |>
+ggplot () +
+  geom_col(aes(firstname, Avg_rating)
+   )
+```
+
+At first glance, we can easily conclude that Betty "grades" movies more harshly than others with an on-average rating of approximately 2.3, which would be true if everyone saw/reviewed every movie, but such is not the case. Some reviewed two movies while others reviewed as many as four, in essence skewing the results. More data exploration is necessary, but I am unsure how to illustrate this graphically.
+
+I look forward to working with this dataset in the future to perform more tidying and visualization as my skills in this course grow.
