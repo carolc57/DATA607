@@ -1,0 +1,240 @@
+---
+title: "Chess Tournament (Project 1 final)"
+author: "Carol Campbell"
+date: September 27, 2026
+format: html
+editor: visual
+---
+
+# Chess Tournament
+
+## Objective
+
+We are given a text file containing a chess tournament cross-table where the information has some structure with which we are to transform in order to facilitate data manipulation and calculate each player's "stats" including total number of points, their pre-rating and their opponent's pre-rating.
+
+## Approach
+
+Prior to doing any coding, I watched the Youtube video, "Reading a Chess Tournament Cross-Table" by Andy Catlin, that was included in the assignment requirements to understand what information a chess tournament cross-table conveys. Once I had an understanding of what the data meant, I was able to conceptualize my approach.
+
+To begin, I will import it into R, study it and then use appropriate appropriate functions from the tidyverse package, including but not limited to stringr and tidyr to manipulate the data and parse out extraneous data/characters. Other functions such as skimr and ggrepel may be used to transform the data into something more suitable for exporting into a .csv file with one row per player with columns that show :
+
+- Player's Name, Player's State, Total number of Points, Player's Pre-Rating, Average Pre Chess Rating of Opponents
+
+For example, for the information for first player would be:
+
+```         
+        Gary Hua, ON, 6.0, 1794, 1605
+```
+
+where 1794 represents his rating and his opponent's rating of 1605 which was calculated by using their pre-tournament ratings of 1436, 1563, 1600, 1610, 1649, 1663, 1716, and dividing by the total number of games played.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries used
+
+```{r message=FALSE}
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+library(readr)
+library(kableExtra)
+```
+
+## Read file from Github
+
+Using "readlines", I imported the flat file, "tournamentinfo.txt", into RStudio. I wrapped the entire import statement in with "suppressWarnings" to eliminate warning regarding that about last line being all dashes.
+
+```{r read file from Github}
+chess_tbl = suppressWarnings(readLines("https://raw.githubusercontent.com/carolc57/Data607/main/tournamentinfo.txt"))
+
+head(chess_tbl, 10)
+
+```
+
+I then removed all lines that contained dashes using.
+
+```{r remove rows w/ dashes}
+
+chess_tbl_mod <- str_replace_all(string = chess_tbl, pattern = "^-+$", "") 
+
+head (chess_tbl_mod)
+```
+
+Our table is looking better but still needs some refinement. Let's remove the empty rows.
+
+```{r remove empty vectors}
+chess_tbl_mod <- chess_tbl[sapply(chess_tbl_mod, nchar) > 0]
+
+head(chess_tbl_mod)
+```
+
+I decided to remove the header rows to facilitate data manipulation.
+
+```{r remove header rows}
+
+chess_tbl_mod <- chess_tbl_mod[-(1:2)]  ##remove column headings because interfere w/ later operations
+
+head(chess_tbl_mod, 8)
+
+```
+
+Since the data for one competitor is spread between two rows, I created two separate vectors, one for even rows and another for odd rows, then paste them together
+
+##### from <https://stackoverflow.com/questions/24440258/selecting-multiple-odd-or-even-columns-rows-for-dataframe>
+
+```{r create separate odd/even vectors}
+
+chess_tbl_mod_odd = chess_tbl_mod[seq(1,128,2)]
+chess_tbl_mod_even = chess_tbl_mod[seq(2,128,2)]
+```
+
+This code will combine the odd and even vectors to create one unified vector, thus each player's data is now on a single row.
+
+```{r combine vector}
+
+chess_tbl_mod_combined <- paste(chess_tbl_mod_odd, chess_tbl_mod_even)
+
+head(chess_tbl_mod_combined, 5)
+
+```
+
+Now that we have the data for each player, let's transform it using various stringr and regex functions to parse out the required fields for the final results.
+
+```{r Tidy Player data using string and regex functions}
+
+#change file name to preserve data prior to manipulation
+chess_final <- chess_tbl_mod_combined 
+
+```
+
+First let's get each player's name
+
+```{r get player name}
+
+Name <- str_extract(string = chess_final, pattern = "\\s([[:alpha:] ]{5,})\\b\\s")  
+
+head(Name, 5)
+```
+
+Obtain total points for each player
+
+```{r total points for each player}
+
+Player_Points <- str_extract(string = chess_final, pattern = "[0-9]\\.[0-9]") 
+
+head (Player_Points)
+```
+
+Get State code
+
+```{r state code}
+
+#need to remove | and surrounding space around two letter State code
+State <- unlist(str_extract_all(chess_final, "\\|[[:space:]]{1,}[[A-Z]]{2} \\|"))
+State <- str_replace_all(State, pattern = "(\\|[[:space:]]{1,})|([[:space:]]{1,}\\|)", replacement = "")
+
+head(State)
+```
+
+```{r Pre_Player rating}
+
+Player_rating <- str_extract(string = chess_final, pattern = "\\s\\d{3,4}[^\\d]")
+
+#extract player numerical rating (some have a P in them)
+Player_rating <- as.integer(str_extract(Player_rating, "\\d+"))
+
+head(Player_rating)
+
+```
+
+Get Player number
+
+```{r Player number}
+
+#extract player number
+PlayerNumTemp <- as.integer(str_extract(chess_final, "\\d+"))
+PlayerNum <- subset(c(PlayerNumTemp), c(PlayerNumTemp)!="0",64)
+
+head(PlayerNum)
+```
+
+Get USCF_id
+
+```{r extract USCF_ID}
+
+USCF_id <- str_extract(string = chess_final, pattern ="[[:digit:]]{8}") 
+
+head(USCF_id)
+
+```
+
+## Opponent Data - parse player's opponents rating per round
+
+I used Copilot for part of this section. My original code,
+
+"Opp_Id \<-str_extract_all(str_extract_all(chess_final, "\\d+\\\|"), "\\d+") Opp_Id \<-subset(c(Opp_Id), c(Opp_Id)!="0") head(Opp_Id)"
+
+gave me this warning,
+
+"Warning in stri_extract_all_regex(string, pattern, simplify = simplify, : argument is not an atomic vector; coercing"
+
+which I didn't understand. I prompted Copilot to "Explain this warning?
+
+I used the code below as suggested to obtain the opponent's data.
+
+```{r get opponent data}
+# Extract only digits that are followed by a pipe (|)
+Opp_Id <- str_extract_all(chess_final, "\\d+(?=\\|)")  
+
+#Flatten the list into a single vector and remove "0"
+Opp_Id_vector <- unlist(Opp_Id)
+Opp_Id_clean  <- Opp_Id_vector[Opp_Id_vector != "0"]
+head(Opp_Id_clean)
+
+```
+
+Calculate opponent average ratings using a for loop
+
+```{r calculate opponent average ratings}
+
+#calculate opponent average ratings
+x<-length(chess_tbl_mod)
+OppAvgRtg <-numeric(x/2)
+for (i in 1:(x/2)) {
+  OppAvgRtg[i] <- mean(Player_rating[as.numeric(unlist(Opp_Id[PlayerNum[i]]))])
+}
+
+OppAvgRtg <- round((OppAvgRtg),0)
+
+head(OppAvgRtg)
+```
+
+## Create a chess_ratings data frame
+
+Now that I have all the required elements, I'll create a ratings data frame
+
+```{r create chess ratings data frame}
+chess_ratings <- data.frame(Name,State,Player_Points,Player_rating, OppAvgRtg)
+
+head(chess_ratings)
+
+```
+
+## Write output to .csv file
+
+Saved data frame as .csv file in my working directory.
+
+```{r write output to .csv file}
+
+write.csv(chess_ratings, file = "Carols Chess Ratings.csv");
+
+```
+
+## Final Chess Ratings Table
+
+```{r create chess rating table}
+kable(chess_ratings) %>%
+kable_styling(bootstrap_options = "striped", full_width = F, position = "center")
+```
