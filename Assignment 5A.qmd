@@ -1,0 +1,197 @@
+---
+title: "Assignment 5A - Flight Data"
+author: "Carol Campbell"
+date: "October 4, 2026"
+format: html
+editor: visual
+---
+
+## Approach
+
+We are tasked with recreating a .csv file provided for us in the assignment. We are free to use any software, including SQL of our choosing, and read it into R for analysis and data manipulation in order to determine which airline has better on-time performance. Is there one carrier who is more reliable than the other and does their location matter?
+
+My plan is to recreate the table in Excel, save it as a .csv file and load it in my Github repository. From there, I will import the file into R using the read_csv function into r. Next I will tidy the data, including pivoting from wide to long format and other exploratory data analysis (EDA) to generate sufficient data that support my final answer.
+
+## Create the data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages}
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+```
+
+## Read file from Github
+
+Using "read_csv" I imported the raw file from my github repository.
+
+```{r read file from Github}
+airline_delay = (read_csv("https://raw.githubusercontent.com/carolc57/DATA607/refs/heads/main/cc_airlinedelays.csv"))
+
+airline_delay
+ 
+str(airline_delay)
+```
+
+## Remove empty rows; fill empty cells
+After importing the file, I see that row three is entirely empty, so I will remove it. Afterwards I will use the fill function to carry the airline names downward to fill the empty N/A cells with the same data. 
+```{r missing values check}
+
+#install.packages("janitor")
+library(janitor)
+
+airline_delay_mod <- remove_empty(airline_delay, "rows")
+
+airline_delay_mod <- airline_delay_mod|>
+  fill(airline, .direction = "down")
+
+
+#Capitalize the first letter of the first two columns
+airline_delay_mod <- airline_delay_mod |> 
+  rename_with(str_to_title, .cols = 1:2)
+
+kable(airline_delay_mod, caption = "Tidy Airline Delay")
+
+```
+
+## Pivot to long data frame
+Now that my data is "tidy" with missing values replaced, I will now pivot it to a long format to convert the city columns into two variables, Destinations and Flights. Transforming the data into this manner facilitates grouping and analying the dataset.
+
+```{r pivot long}
+airline_delay_long <- airline_delay_mod |>
+  pivot_longer(
+    cols = -c(Airline, Status),
+    names_to = "Destination",
+    values_to = "Flights"
+  ) |>
+  mutate(
+    Airline = recode(
+  Airline,
+  "ALASKA" = "Alaska",
+  "AM WEST" = "AM West"
+),
+    Status = str_to_lower(Status)
+  )
+
+head(airline_delay_long, 20)
+
+
+```
+
+## Compare count and percentage of on-time flights for the two airlines.
+
+```{r}
+overall_performance <- airline_delay_long |>
+  group_by(Airline, Status) |>
+  summarise(
+    Flights = sum(Flights),
+    .groups = "drop"
+  ) |>
+  group_by(Airline) |>
+  mutate(
+    Total_flights = sum(Flights),
+    Percentage = round((Flights / Total_flights * 100),1)
+  )
+
+kable(overall_performance, caption = "Overall Performance")
+
+```
+Here we see that AM WEST has the lowest overall delay rate at 10.9% compared to Alaska's 13.3%. Whereas the two airlines are pretty close in their respective on-time rates with AM West leading at 89.1% compared to Alaska's 86.7%
+
+
+##Let's focus on on-time arrival rates between two by using the filter function
+```{r}
+
+overall_performance %>%
+  filter(Status == "on time") %>%
+  ggplot(aes(x = Airline, y = Percentage, fill = Airline)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(
+    aes(label = paste0(round(Percentage, 1), "%")),
+    vjust = -0.4
+  ) +
+  labs(
+    title = "Overall Percentage of On-Time Flights",
+    x = NULL,
+    y = "On Time (%)"
+  ) +
+  theme_classic()
+```
+Overall AM West had a slightly better on-time arrival rate than Alaska, however this comparison may be somewhat skewed. Other factors such as destination may tell a different story.
+
+## Compare count and percentage of on-time flights for the two airlines across five cities.
+
+```{r}
+
+city_ontime <- airline_delay_long |>
+  group_by(Airline, Destination, Status) |>
+  summarise(Flights = sum(Flights), .groups = "drop") |> 
+  group_by(Airline, Destination) |> 
+  mutate(Total_flights = sum(Flights)) |>                 
+  mutate(Percentage = round((Flights / Total_flights * 100), 1)) |>
+  filter(Status == "on time") |>
+  select(Airline, Destination, Ontime_Flights = Flights,
+         Total_flights, OnTime_Percentage = Percentage)  
+  
+  
+kable(city_ontime, caption ="City On-time Performance")
+  
+
+
+```
+## On time by City chart
+```{r}
+ggplot(
+  city_ontime,
+  aes(
+    x = Destination,
+    y = OnTime_Percentage,
+    fill = Airline
+  )
+) +
+  geom_col(
+    position = "dodge"
+  ) +
+  labs(
+    title = "On-Time Percentage by Destination and Airline",
+    x = "Destination",
+    y = "On-Time Flights (%)",
+    fill = "Airline"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+```
+## Key takeaways on City specific On-time performance
+
+1.This graph indicates that Alaska outperforms AM West across the board
+For each city—Los Angeles, Phoenix, San Diego, San Francisco, and Seattle—Alaska’s bar is higher. Even without exact numbers, the visual gap is obvious.
+
+2.The performance gap varies by destination Largest gap: Likely San Francisco or Seattle, where Alaska’s bar is much higher.
+
+  Smallest gap: Possibly Phoenix, where the difference looks narrower.
+
+  This suggests that AM West struggles more in certain markets than others.
+
+3. Both airlines show destination‑specific variability
+Some cities have noticeably higher on‑time percentages for both airlines (e.g., Seattle), while others show lower performance (e.g., San Francisco).
+
+4. Alaska’s operational consistency stands out
+The red bars (Alaska) stay relatively high and stable across destinations. AM West’s teal bars fluctuate more and generally sit lower.
+
+
+
+
+
+
+
+
+
+
