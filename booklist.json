@@ -2,8 +2,8 @@
   {
     "title": "Framed: Astonishing True Stories of Wrongful Convictions",
     "author_1": "John Grisham",
-    "author_2": " Jim McCloskey",
-    "publication year": "2024",   
+    "author_2": "Jim McCloskey",
+    "pub_year": "2024",   
     "genre": "Nonfiction",
     "num_pgs": 423,
     "type": "hardcover, paperback",
@@ -12,7 +12,7 @@
   {  
     "title": "The Pelican Brief",
     "author_1": "John Grisham",
-    "publication year": "1992",
+    "pub_year": "1992",
     "genre":  "Fiction, Legal Thriller, Crime",
     "num_pgs": 386,
     "type": "hardcover",
@@ -21,7 +21,7 @@
   {
     "title": "The Widow",
     "author_1": "John Grisham",
-    "publication year": "2025",
+    "pub_year": "2025",
     "genre": "Mystery, Fiction, Legal Thriller, Crime",
     "num_pgs": 417,
     "type": "paperback",
